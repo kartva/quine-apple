@@ -1,59 +1,51 @@
-This is an AI-generated README I wrote for the sake of having one before hackathon judging. Do not put much stock in this until I get around to manually writing it. In the meantime, the [DevPost](https://devpost.com/software/quine-apple-bad-apple-in-a-c-quine) has documentation I wrote.
+<img align="right" src="screenshot.png" width="40%" />
+<b>Left: the program. Right: Bad Apple frame in the comments</b>
 
-# Bad Apple Quine
+# Devpost (with minor modifications)
 
-A self-replicating program (quine) that plays the Bad Apple animation in ASCII art. This project combines the concept of a quine with ASCII art animation playback.
+## Inspiration
+Doom on \<X\> is a popular hobby for a certain demographic. Recently, I'd seen [Doom on a pregnancy test](https://www.popularmechanics.com/science/a33957256/this-programmer-figured-out-how-to-play-doom-on-a-pregnancy-test/). [Bad Apple](https://www.youtube.com/watch?v=FtutLA63Cp8) is a popular internet video which has been run on at least [149 things according to this playlist](https://www.youtube.com/watch?v=cuMkI6cDKMs&list=PLajlU5EKJVdonUGTEc7B-0YqElDlz9Sf9), including [Desmos](https://youtu.be/MVrNn5TuMkY?list=PLajlU5EKJVdonUGTEc7B-0YqElDlz9Sf9), [HTML Checkboxes](https://youtu.be/ZGvXdYXami4?list=PLajlU5EKJVdonUGTEc7B-0YqElDlz9Sf9), and a [TI-84](https://youtu.be/6pAeWf3NPNU?list=PLajlU5EKJVdonUGTEc7B-0YqElDlz9Sf9). Following in this illustrious tradition, I present Bad Apple in a quine.
 
-## Project Structure
+## What it does
+A [_quine_](https://en.wikipedia.org/wiki/Quine_(computing)) is a program that takes no input and produces itself as output. A "simple" (it's not!) C quine is the following ([from StackOverflow](https://stackoverflow.com/questions/60212717/quine-program-example-in-c)):
+```c
+char*f="char*f=%c%s%c;main(){printf(f,34,f,34,10);}%c";
 
-- `quine.c` - The main template source file
-- `quine.pack.c` - Generated packed version of the quine 
-- `quine_staging.c` - Temporary file generated during animation playback
-- `quine.min.c` - Minimized version of the quine
-- `generate_quine.hs` - Haskell script to generate the packed quine
-- `Makefile` - Build automation
-- `quine.sh` - Shell script to run the animation
-- `download_BA.sh` - Script to download Bad Apple video
-- `encoded_frames.txt` - Contains the ASCII art frames
-- `bad_apple_processing/` - Directory containing video processing scripts
-  - `bad_apple.gif` - The original Bad Apple animation
-  - `bad_apple.mp4` - Video version
-  - `bitmap.py` - Python script to process video frames
+main() {
+    printf(f,34,f,34,10);
+}
+```
 
-## How It Works
+I present a quine written in C which when compiled and executed, produces output which contains a Bad Apple frame in comments along with its own source code. This output can be saved into a C file, compiled and executed to print the _next_ Bad Apple frame in comments along with its source code. This can be repeated in an infinite loop to play the first 100 frames* from Bad Apple in a loop.
 
-1. The project uses a self-replicating program (quine) as its base
-2. The quine is generated using `generate_quine.hs` which formats and packs the C code
-3. The program combines the quine functionality with playback of ASCII art frames
-4. Each iteration:
-   - The program outputs its own source code
-   - Includes the next frame of the animation in the output
-   - The output is compiled and run again
-   - This creates a continuous animation loop
+*: We actually sample one out of every two frames to have more variety, so it's really every other frame from the first 200 frames.
 
-## Building and Running
+## How we built it
+A good starting point was [this repository of quines](https://github.com/Wonshtrum/quines) which contains good examples of writing C quines. I tried to copy as little as possible, and while the method of making a quine is directly taken from this repository, many of the surrounding scripts used for generating data and formatting the quine were written independently.
+
+## Other ideas that were considered
+My original idea for this project was to somehow derive Bad Apple from visualizing a compiler's optimization passes on a seemingly-innocuous program. I thought of a scheme on coloring cells based on whether an IR node was optimized in a pass or not, but realized that the code that would trigger this would look rather boring or be very hard to construct.
+I then considered coming up with more interesting looking expressions that could still lead to Bad Apple in optimization passes. I considered deriving implicit surface formulas for each frame (which I knew from [Matt Keeter's research](https://www.mattkeeter.com/projects/prospero/)) but that proved to be more complicated than doable in the few hours I had (and embedding a bytecode machine to render implicit surfaces is a compiler felt contrived). I then switched to thinking about quines and landed on the current idea.
+
+## What's next for Quine Apple: Bad Apple in a C Quine
+I might attempt to figure out better compression, grayscale rendering, and a smaller ("golfed") quine.
+
+# Project Structure
+- [`quine.c`] - The main template source file
+- [`quine.pack.c`] - Generated packed version of the quine, emitted by `generate_quine.hs`.
+- [`generate_quine.hs`] - Haskell script to generate and format the packed quine. `hMini` is WIP next-generation for this.
+- [`quine.sh`] - Shell script to repeatedly compile, execute, display and compile the output again.
+- [`bad_apple_processing/`]
+  - [`bad_apple.gif`](bad_apple_processing/bad_apple.gif) - The Bad Apple animation
+  - [`bitmap.py`](bad_apple_processing/bitmap.py) - Python script to process video frames and output a compressed C representation
+
+## Running
 
 ```bash
 ./quine.sh # compiles and runs the quine in a self-feeding loop.
 ```
 
-1. Generate the packed quine:
-```bash
-runhaskell generate_quine.hs quine.c 242
-```
+# Fun notes that I'm not currently proud of
 
-## Implementation Details
-
-- Uses C for the core quine implementation
-- Haskell for code generation and formatting
-- Python
-- The animation frames are run-length encoded.
-- The program maintains a screen buffer (68x40 characters) for the ASCII art.
-
-## Files Description
-
-- `quine.c`: Template file containing the base quine implementation
-- `generate_quine.hs`: Handles code formatting, string escaping, and placeholder replacement
-- `Makefile`: Automates the build process with proper dependencies
-- `quine.sh`: Orchestrates the animation loop, clearing screen and recompiling between frames
-- `bitmap.py`: Converts video frames to ASCII art and encodes them efficiently
+Fun note 1: the current Haskell script is bad at stripping comments, so any comments that do not start with `\t*\/\/` are not deleted and *will* corrupt other code when newlines get folded and cause a compilation failure.
+Fun note 2: the Haskell script struggles with properly folding escaped strings so you may to search for a particular width that will allow the compressed quine to compile. The quine, at runtime, must also perform width compression and therefore has a width parameter as well which should be exactly 1 more than the Haskell script parameter. Additionally, the code I've worked on was already badly documented when I touched it and has only gotten worse, and so the reason that the first line's comments are offset compared to the rest of the comments is a mystery to me.
