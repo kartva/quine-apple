@@ -60,7 +60,7 @@ main = do
       let compactedTemplate = compactCCode template
       putStrLn $ "Template code (compacted):\n" ++ compactedTemplate
       let formattedTemplate = formatCCode maxWidth compactedTemplate
-      putStrLn $ "Template code (compacted):\n" ++ formattedTemplate
+      putStrLn $ "Template code (formatted):\n" ++ formattedTemplate
       let generatedCode = generateQuine formattedTemplate
       putStrLn $ "Generated code:\n" ++ generatedCode
       let formattedCode = formatCCode maxWidth generatedCode

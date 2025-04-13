@@ -1,7 +1,7 @@
-PYTHON = python3
-SCRIPT = generate_quine.py
+HASKELL = runhaskell
+SCRIPT = generate_quine.hs
 TEMPLATE = quine.c
-GENERATED_C = $(basename $(TEMPLATE)).quine.c
+GENERATED_C = $(basename $(TEMPLATE)).pack.c
 EXECUTABLE = quine_executable
 
 CC = gcc
@@ -12,10 +12,10 @@ CFLAGS = -Wall -Wextra -std=c11
 # Default target: build the executable
 all: $(EXECUTABLE)
 
-# Rule to generate the quine C file from the template using the Python script
-# Depends on the template C file and the Python script
+# Rule to generate the quine C file from the template using the HASKELL script
+# Depends on the template C file and the HASKELL script
 $(GENERATED_C): $(TEMPLATE) $(SCRIPT)
-	$(PYTHON) $(SCRIPT) $(TEMPLATE)
+	$(HASKELL) $(SCRIPT) $(TEMPLATE) 80
 
 # Rule to compile the generated C file into an executable
 # Depends on the generated C file
