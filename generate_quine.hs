@@ -114,7 +114,7 @@ splitParts = go False ""
       | c == '"' && not (isEscaped acc) =
           -- encountered an unescaped quote: finish current part and toggle mode.
           -- strip starting quote from the accumulated part.
-          let quote_stripped_acc = if inStr then tail (reverse acc) else reverse acc
+          let quote_stripped_acc = reverse acc
               part = (inStr, quote_stripped_acc)
           in part : go (not inStr) [] cs  -- include the quote in the new part
       | otherwise = go inStr (c:acc) cs
@@ -128,7 +128,7 @@ splitParts = go False ""
 -- When joining two parts of different mode, no extra break marker is needed.
 reflowParts :: Int -> [Part] -> [String]
 reflowParts maxWidth = concatMap (reflowPart maxWidth :: Part -> [String])
-  
+
 
 ------------------------------------------------------------
 -- Reflow one part.
