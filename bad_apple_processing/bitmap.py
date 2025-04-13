@@ -2,32 +2,48 @@ from PIL import Image, ImageSequence
 import sys
 
 # Configuration
-MAX_FRAMES = 100  # How many frames to process
-SKIP_FACTOR = 8   # Process every Nth frame
+START_FRAME = 0  # Start frame
+FRAMES_END = 200  # How many frames to process
+SKIP_FACTOR = 2   # Process every Nth frame
 WIDTH = 68
 HEIGHT = 40
 
-def RLE_encode(data):
-    """Run-length encoding for binary data."""
+min_char = 35  # '#'
+max_char = 125  # '}'
+
+def bit_packed_RLE_encode(data):
+    """Run-length encoding with bit packing for binary data.
+    Packs run length and value into a single character:
+    - 5 bits for count (allowing runs up to 31)
+    - 1 bit for binary value
+    - Resulting in ((count & 31) << 1 | value) + min_char to stay in 35-125 range
+    """
     encoded = []
     count = 1
     for i in range(1, len(data)):
-        if data[i] == data[i - 1] and count < (125 - 31):
+        if data[i] == data[i - 1] and count < 31:  # Max 5-bit value
             count += 1
         else:
-            # ASCII characters from ' ' (32) to '}' (125) for length; '1' or '0' for value
-            if chr(31 + count) == '\"':
+            # Pack count and value into a single character
+            # Limited to 5 bits for count to ensure we stay in ASCII range
+            # count must be in range 0-31 (5 bits)
+            packed = ((count & 31) << 1) | (1 if data[i-1] else 0)
+            # Add min_char to get into printable ASCII range
+            char = chr(packed + min_char)
+            
+            # Escape special characters
+            if char == '\'' or char == '\\':
                 encoded.append('\\')
-            elif chr(31 + count) == '\\':
-                encoded.append('\\')
-            encoded.append(chr(31 + count) + ('1' if data[i-1] else '0'))
+            encoded.append(char)
             count = 1
 
-    if chr(31 + count) == '\"':
+    # Handle the last run
+    packed = ((count & 31) << 1) | (1 if data[-1] else 0)
+    char = chr(packed + min_char)
+    if char == '\'' or char == '\\':
         encoded.append('\\')
-    elif chr(31 + count) == '\\':
-        encoded.append('\\')
-    encoded.append(chr(31 + count) + ('1' if data[i-1] else '0'))
+    encoded.append(char)
+    
     return ''.join(encoded)
 
 def process_frames(gif_path):
@@ -35,7 +51,9 @@ def process_frames(gif_path):
     frames = []
     
     for i, frame in enumerate(ImageSequence.Iterator(gif)):
-        if i >= MAX_FRAMES:
+        if i < START_FRAME:
+            continue
+        if i >= FRAMES_END:
             break
         if i % SKIP_FACTOR > 0:
             continue
@@ -48,11 +66,11 @@ def process_frames(gif_path):
         data = list(frame.getdata())
         data = [0 if pixel == 0 else 1 for pixel in data]
         
-        # RLE encode the frame
-        encoded = RLE_encode(data)
+        # Encode the frame using bit-packed RLE
+        encoded = bit_packed_RLE_encode(data)
         frames.append(encoded)
     
-    # Join all frames with a special separator (使)
+    # Join all frames with a special separator
     return ('~'.join(frames)) + '~'
 
 if __name__ == "__main__":
