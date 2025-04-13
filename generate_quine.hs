@@ -156,7 +156,7 @@ reflowNonString maxWidth s = go (words s) []
       let lineCandidate = unwords (current ++ [w])
       in if length lineCandidate <= maxWidth
             then go ws (current ++ [w])
-            else (unwords current ++ "\\") : go (w:ws) []
+            else (unwords current ++ " \\") : go (w:ws) []
 
 -- Reflow a string literal.
 -- Since the string part (from splitParts) does not include the enclosing quotes,
