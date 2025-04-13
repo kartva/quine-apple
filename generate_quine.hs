@@ -87,54 +87,19 @@ deriveOutputFileName inputFile =
 --  * Outside string literals: breaks occur only at word boundaries (white–space is used as delimiter) and a backslash is
 --    inserted at the end of each line when a break is inserted.
 --
+-- The overall function works line–by–line.
 formatCCode :: Int -> String -> String
-formatCCode maxWidth src = formatCCode' maxWidth maxWidth src
-  where 
-    formatCCode' maxWidth remainingWidth src =
-      case lines src of -- split by newlines
-        [] -> ""  -- empty source
-        (line:rest) | head line == '#' ->
-          -- Preprocessor directive: pass through without reflow.
-          line ++ "\n" ++ formatCCode' maxWidth maxWidth (unlines rest)
-        (line:rest) ->
-          -- Reflow the first line into lines.
-          let first_into_lines = processLine maxWidth line
-          -- All parts before the last part are finalized.
-          -- The last part is merged back into the remaining source.
-              in case reverse first_into_lines of
-                [last_part] -> last_part ++ formatCCode' maxWidth (remainingWidth - length last_part) (unlines rest)
-                (last_part:rev_lines) ->
-                  if head (unlines rest) == '#' then
-                      unlines (reverse rev_lines) ++ last_part ++ "\n" ++ formatCCode' maxWidth maxWidth (unlines rest)
-                  else 
-                    let new_remaining = last_part ++ unlines rest
-                    -- The last part is merged back into the remaining source.
-                    in unlines (reverse rev_lines) ++ formatCCode' maxWidth maxWidth new_remaining
+formatCCode maxWidth src =
+  unlines $ concatMap (processLine maxWidth) (lines src)
 
 ------------------------------------------------------------
 -- Process a single line.
 ------------------------------------------------------------
-breakLine :: Int -> String -> (String, Maybe String)
--- Munch parts until we reach the max width.
--- If we reach the max width, break the line and return the rest.
--- If we reach the end of the line, return the whole line and Nothing.
-breakLine _ "" = ("", Nothing)
-breakLine maxWidth line =
-  let (lineParts, rest) = breakLine' maxWidth line
-  in case rest of
-    "" -> (unwords lineParts, Nothing)
-    _  -> (unwords lineParts, Just rest)
-  where
-    breakLine' :: Int -> String -> ([String], String)
-    breakLine' _ "" = ([], "")
-    breakLine' maxWidth line =
-      let (part, rest) = break (isSpace) line
-          partLength = length part
-      in if partLength > maxWidth
-            then ([], line)  -- part is too long, return it as the rest
-            else let (restParts, restRest) = breakLine' (maxWidth - partLength - 1) rest
-                 in (part : restParts, restRest)
-    -- helper: isSpace is a function that checks if a character is whitespace
+processLine :: Int -> String -> [String]
+processLine maxWidth line
+  -- If the line is a preprocessor directive, do not reflow it.
+  | not (null line) && head line == '#' = [line]
+  | otherwise = reflowParts maxWidth (splitParts line)
 
 ------------------------------------------------------------
 -- We first split the line into segments, each tagged with whether it is inside a string literal.
@@ -163,7 +128,7 @@ splitParts = go False ""
 -- When joining two parts of different mode, no extra break marker is needed.
 reflowParts :: Int -> [Part] -> [String]
 reflowParts maxWidth = concatMap (reflowPart maxWidth :: Part -> [String])
-
+  
 
 ------------------------------------------------------------
 -- Reflow one part.
