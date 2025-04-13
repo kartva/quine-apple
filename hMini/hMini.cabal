@@ -1,0 +1,44 @@
+cabal-version:   3.0
+name:            hMini
+version:         0.1.0.0
+license:         BSD-3-Clause
+license-file:    LICENSE
+author:          Kartavya Vashishtha
+maintainer:      sendtokartavya@gmail.com
+build-type:      Simple
+extra-doc-files: CHANGELOG.md
+
+common warnings
+    ghc-options: -Wall
+
+library
+    import:           warnings
+    exposed-modules:  Minifier
+    build-depends:    base >=4.7 && <5,
+                     megaparsec,
+                     text
+    hs-source-dirs:   app
+    default-language: Haskell2010
+
+executable hMini
+    import:           warnings
+    main-is:          Main.hs
+    build-depends:    base >=4.7 && <5,
+                     hMini,
+                     megaparsec,
+                     text
+    hs-source-dirs:   app
+    default-language: Haskell2010
+
+test-suite hMini-tests
+    import:           warnings
+    type:            exitcode-stdio-1.0
+    main-is:         Spec.hs
+    hs-source-dirs:  test
+    build-depends:   base >=4.7 && <5,
+                    hMini,
+                    megaparsec,
+                    text,
+                    tasty,
+                    tasty-hunit
+    default-language: Haskell2010
