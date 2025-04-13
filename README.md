@@ -1,3 +1,5 @@
+This is an AI-generated README I wrote for the sake of having one before hackathon judging. Do not put much stock in this until I get around to manually writing it. In the meantime, the [DevPost](https://devpost.com/software/quine-apple-bad-apple-in-a-c-quine) has documentation I wrote.
+
 # Bad Apple Quine
 
 A self-replicating program (quine) that plays the Bad Apple animation in ASCII art. This project combines the concept of a quine with ASCII art animation playback.
@@ -55,10 +57,3 @@ runhaskell generate_quine.hs quine.c 242
 - `Makefile`: Automates the build process with proper dependencies
 - `quine.sh`: Orchestrates the animation loop, clearing screen and recompiling between frames
 - `bitmap.py`: Converts video frames to ASCII art and encodes them efficiently
-
-## Requirements
-
-- GCC compiler
-- Haskell with GHC
-- Python 3 (for video processing)
-- Bash shell
