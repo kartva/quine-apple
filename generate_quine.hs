@@ -59,11 +59,13 @@ main = do
       template <- readFile templateFile
       let compactedTemplate = compactCCode template
       putStrLn $ "Template code (compacted):\n" ++ compactedTemplate
-      let generatedCode = generateQuine compactedTemplate
+      let formattedTemplate = formatCCode maxWidth compactedTemplate
+      putStrLn $ "Template code (compacted):\n" ++ formattedTemplate
+      let generatedCode = generateQuine formattedTemplate
       putStrLn $ "Generated code:\n" ++ generatedCode
-      let formattedGeneratedCode = formatCCode maxWidth generatedCode
-      putStrLn $ "Generated code (formatted):\n" ++ formattedGeneratedCode
-      writeFile outputFile formattedGeneratedCode
+      let formattedCode = formatCCode maxWidth generatedCode
+      putStrLn $ "Formatted code:\n" ++ formattedCode
+      writeFile outputFile formattedCode
       putStrLn $ "Generated quine-like program written to " ++ outputFile
     _ -> putStrLn "Usage: runhaskell generate_quine.hs <templateFile> <maxWidth> OR runhaskell generate_quine.hs test"
 
