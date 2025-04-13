@@ -7,7 +7,7 @@
 Doom on \<X\> is a popular hobby for a certain demographic. Recently, I'd seen [Doom on a pregnancy test](https://www.popularmechanics.com/science/a33957256/this-programmer-figured-out-how-to-play-doom-on-a-pregnancy-test/). [Bad Apple](https://www.youtube.com/watch?v=FtutLA63Cp8) is a popular internet video which has been run on at least [149 things according to this playlist](https://www.youtube.com/watch?v=cuMkI6cDKMs&list=PLajlU5EKJVdonUGTEc7B-0YqElDlz9Sf9), including [Desmos](https://youtu.be/MVrNn5TuMkY?list=PLajlU5EKJVdonUGTEc7B-0YqElDlz9Sf9), [HTML Checkboxes](https://youtu.be/ZGvXdYXami4?list=PLajlU5EKJVdonUGTEc7B-0YqElDlz9Sf9), and a [TI-84](https://youtu.be/6pAeWf3NPNU?list=PLajlU5EKJVdonUGTEc7B-0YqElDlz9Sf9). Following in this illustrious tradition, I present Bad Apple in a quine.
 
 ## What
-A [_quine_](https://en.wikipedia.org/wiki/Quine_(computing)) is a program that takes no input and produces itself as output. A "simple" (it's not!) C quine is the following ([from StackOverflow](https://stackoverflow.com/questions/60212717/quine-program-example-in-c)):
+A [_quine_](https://en.wikipedia.org/wiki/Quine_(computing)) is a program that takes no input and produces itself as output. A "simple" (I wouldn't call it that!) C quine is the following ([from StackOverflow](https://stackoverflow.com/questions/60212717/quine-program-example-in-c)):
 ```c
 char*f="char*f=%c%s%c;main(){printf(f,34,f,34,10);}%c";
 
