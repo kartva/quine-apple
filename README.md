@@ -1,9 +1,8 @@
+https://github.com/user-attachments/assets/64e126e1-d458-49dc-8fe5-2bc0b1421bc9
+
+# Quine Apple: Bad Apple in a C Quine
 <img align="right" src="media/screenshot.png" width="40%" />
 <b>Left: the program. Right: Bad Apple frame in the comments</b>
-
-[Video](media/quine-apple.mp4)
-
-# Quine Apple: Bad Apple in a C Quine (devpost with minor modifications)
 
 ## Inspiration
 Doom on \<X\> is a popular hobby for a certain demographic. Recently, I'd seen [Doom on a pregnancy test](https://www.popularmechanics.com/science/a33957256/this-programmer-figured-out-how-to-play-doom-on-a-pregnancy-test/). [Bad Apple](https://www.youtube.com/watch?v=FtutLA63Cp8) is a popular internet video which has been run on at least [149 things according to this playlist](https://www.youtube.com/watch?v=cuMkI6cDKMs&list=PLajlU5EKJVdonUGTEc7B-0YqElDlz9Sf9), including [Desmos](https://youtu.be/MVrNn5TuMkY?list=PLajlU5EKJVdonUGTEc7B-0YqElDlz9Sf9), [HTML Checkboxes](https://youtu.be/ZGvXdYXami4?list=PLajlU5EKJVdonUGTEc7B-0YqElDlz9Sf9), and a [TI-84](https://youtu.be/6pAeWf3NPNU?list=PLajlU5EKJVdonUGTEc7B-0YqElDlz9Sf9). Following in this illustrious tradition, I present Bad Apple in a quine.
