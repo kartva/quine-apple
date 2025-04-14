@@ -1,5 +1,7 @@
-<img align="right" src="screenshot.png" width="40%" />
+<img align="right" src="media/screenshot.png" width="40%" />
 <b>Left: the program. Right: Bad Apple frame in the comments</b>
+
+[Video](media/quine-apple.mp4)
 
 # Quine Apple: Bad Apple in a C Quine (devpost with minor modifications)
 
