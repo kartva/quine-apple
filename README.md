@@ -25,7 +25,7 @@ I present a quine written in C which when compiled and executed, produces output
 A good starting point was [this repository of quines](https://github.com/Wonshtrum/quines) which contains good examples of writing C quines. I tried to copy as little as possible, and while the method of making a quine is directly taken from this repository, many of the surrounding scripts used for generating data and formatting the quine were written independently.
 
 ## Why
-Made in <24 hours for Purdue University's Catapult hackathon.
+Made in <24 hours for Purdue University's Catapult hackathon. While the hackathon allowed for teams upto six people, I competed solo. I won my track.
 
 ## Other ideas that were considered but did not make it
 My original idea for this project was to somehow derive Bad Apple from visualizing a compiler's optimization passes on a seemingly-innocuous program. I thought of a scheme on coloring cells based on whether an IR node was optimized in a pass or not, but realized that the code that would trigger this would look rather boring or be very hard to construct.
