@@ -24,6 +24,7 @@ data Token
   | TSingleComment String     -- ^ A single‐line comment beginning with "//".
   | TMultiComment String      -- ^ A multi‐line comment enclosed in "/* … */".
   | TString [StringChar]      -- ^ A string literal made up of a list of StringChar.
+  | TChar StringChar          -- ^ A character literal containing either a normal or escaped char.
   deriving (Show, Eq)
 
 -- * Parser definitions
@@ -45,6 +46,7 @@ pToken = choice
   , try pSingleLineComment
   , try pMultiLineComment
   , try pString
+  , try pChar
   , try pWord
   , pSymbol
   ]
@@ -82,6 +84,14 @@ pString = do
   content <- manyTill pStringChar (char '"')
   return $ TString content
 
+-- | Parse a character literal.
+pChar :: Parser Token
+pChar = do
+  _ <- char '\''
+  content <- pStringChar
+  _ <- char '\''
+  return $ TChar content
+
 -- | Parse a character inside a string literal.
 pStringChar :: Parser StringChar
 pStringChar =
@@ -94,7 +104,7 @@ pStringChar =
 -- | Parse an alphanumeric word.
 pWord :: Parser Token
 pWord = do
-  w <- some (satisfy isAlphaNum)
+  w <- some (satisfy (\x -> isAlphaNum x || x == '_'))
   return $ TWord w
 
 -- | Parse a symbol token.
@@ -217,6 +227,13 @@ emitTokens maxWidth tokens_ st =
                   in case mRest of
                     Nothing   -> emitTokens maxWidth tks st2
                     Just rest -> emitTokens maxWidth (TString rest : tks) (flushLine st2)
+        -- Character literals are emitted similarly to strings.
+        TChar c ->
+          let literal = "'" ++ printStringChar c ++ "'"
+          in if length (currentLine st) + length literal <= maxWidth
+                then emitTokens maxWidth tks st { currentLine = currentLine st ++ literal, lastWasWord = False }
+                else let st' = breakLine st
+                     in emitTokens maxWidth tks st' { currentLine = currentLine st' ++ literal, lastWasWord = False }
         -- Comments have been removed already.
         _ -> st
 
