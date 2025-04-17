@@ -2,16 +2,14 @@
 
 module Main where
 
-import Minifier
-import qualified Data.Text as T
+import Minifier (minifyC)
 import System.Environment (getArgs)
-import System.IO (readFile, writeFile)
 
 -- | Derive output filename by adding '.min.c' to the base name
 deriveOutputFileName :: String -> String
 deriveOutputFileName inputFile =
-  let (name, _) = break (== '.') inputFile
-  in name ++ ".min.c"
+  let (_, rname) = break (== '.') (reverse inputFile)
+  in reverse rname ++ "min.c"
 
 -- | Main program logic
 processFile :: FilePath -> Int -> IO ()
@@ -20,11 +18,10 @@ processFile inputFile maxWidth = do
   putStrLn $ "Max width for wrapping: " ++ show maxWidth
   contents <- readFile inputFile
   let outputFile = deriveOutputFileName inputFile
-  case minifyC maxWidth (T.pack contents) of
-    Right minified -> do
-      writeFile outputFile (T.unpack minified)
-      putStrLn $ "Minified code written to " ++ outputFile
-    Left err -> putStrLn $ "Error: " ++ err
+      minified = minifyC maxWidth contents
+  do
+    writeFile outputFile minified
+    putStrLn $ "Minified code written to " ++ outputFile
 
 main :: IO ()
 main = do

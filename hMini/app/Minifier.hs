@@ -1,193 +1,239 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Minifier 
   ( minifyC
   ) where
 
-import Data.Text (Text)
-import qualified Data.Text as T
-import Data.Char (isSpace)
-import Data.List (foldl')
+import           Control.Monad              (void)
+import           Data.Char                  (isAlphaNum, isSpace)
+import           Data.Void
+import           Text.Megaparsec            hiding (Token)
+import           Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
 
--- | Minifies C code while preserving semantics
--- The first parameter is the column width for line breaking
-minifyC :: Int -> Text -> Either String Text
-minifyC maxWidth code = 
-  Right $ minifyAndWrap maxWidth code
 
--- | Process the entire code
-minifyAndWrap :: Int -> Text -> Text
-minifyAndWrap maxWidth input =
-  let lines = T.lines input
-      processedLines = map processLine lines
-      combined = combinePP processedLines
-      wrapped = wrapLongStrings maxWidth combined
-  in wrapped
+-- * Token and StringChar definitions
 
--- | Process a single line of code
-processLine :: Text -> Text
-processLine line
-  | T.null line = ""
-  | "#" `T.isPrefixOf` T.stripStart line = line  -- Preserve preprocessor directives as-is
-  | otherwise = T.stripEnd $ compressWhitespace $ stripComments line  -- Strip trailing spaces
+-- | A StringChar is either a normal character or an escaped character.
+data StringChar = NormalChar Char | EscapedChar Char
+  deriving (Show, Eq)
 
--- | Strip single-line comments from code
-stripComments :: Text -> Text
-stripComments = go False False ""
+-- | The tokens produced by our lexer.
+data Token
+  = TPreprocessor String      -- ^ Preprocessor directive (line starting with '#' at col 1)
+  | TWord String              -- ^ A contiguous alphanumeric word.
+  | TSymbol String            -- ^ A maximal sequence of non-alphanumeric, non‐whitespace symbols.
+  | TSingleComment String     -- ^ A single‐line comment beginning with "//".
+  | TMultiComment String      -- ^ A multi‐line comment enclosed in "/* … */".
+  | TString [StringChar]      -- ^ A string literal made up of a list of StringChar.
+  deriving (Show, Eq)
+
+-- * Parser definitions
+
+type Parser = Parsec Void String
+
+-- | Consumes spaces.
+sc :: Parser ()
+sc = L.space space1 empty empty
+
+-- | Top-level token parser.
+pTokens :: Parser [Token]
+pTokens = many (pToken <* sc)
+
+-- | Parse one token.
+pToken :: Parser Token
+pToken = choice
+  [ try pPreprocessor
+  , try pSingleLineComment
+  , try pMultiLineComment
+  , try pString
+  , try pWord
+  , pSymbol
+  ]
+
+-- | Parse a preprocessor directive. Must occur at column 1.
+pPreprocessor :: Parser Token
+pPreprocessor = do
+  pos <- getSourcePos
+  if unPos (sourceColumn pos) == 1
+    then do
+      d <- char '#' >> manyTill anySingle (try (void newline) <|> eof)
+      _ <- optional newline
+      return $ TPreprocessor ('#':d)
+    else
+      fail "Preprocessor directive only valid at beginning of line"
+
+-- | Parse a single-line comment.
+pSingleLineComment :: Parser Token
+pSingleLineComment = do
+  _ <- string "//"
+  content <- manyTill anySingle (try (void newline) <|> eof)
+  return $ TSingleComment ("//" ++ content)
+
+-- | Parse a multi-line comment.
+pMultiLineComment :: Parser Token
+pMultiLineComment = do
+  _ <- string "/*"
+  content <- manyTill anySingle (try (string "*/"))
+  return $ TMultiComment ("/*" ++ content ++ "*/")
+
+-- | Parse a string literal.
+pString :: Parser Token
+pString = do
+  _ <- char '"'
+  content <- manyTill pStringChar (char '"')
+  return $ TString content
+
+-- | Parse a character inside a string literal.
+pStringChar :: Parser StringChar
+pStringChar =
+      (do _ <- char '\\'
+          c <- anySingle
+          return (EscapedChar c))
+  <|> (do c <- satisfy (\x -> x /= '"' && x /= '\\' && x /= '\n')
+          return (NormalChar c))
+
+-- | Parse an alphanumeric word.
+pWord :: Parser Token
+pWord = do
+  w <- some (satisfy isAlphaNum)
+  return $ TWord w
+
+-- | Parse a symbol token.
+pSymbol :: Parser Token
+pSymbol = do
+  c <- satisfy (\x -> not (isAlphaNum x) && not (isSpace x) && x /= '"')
+  rest <- many (satisfy (\x -> not (isAlphaNum x) && not (isSpace x) && x /= '"'))
+  return $ TSymbol (c:rest)
+
+-- * Postprocessing of tokens
+
+-- | Merge consecutive string tokens.
+mergeStrings :: [Token] -> [Token]
+mergeStrings [] = []
+mergeStrings (TString s1 : TString s2 : ts) =
+  mergeStrings (TString (s1 ++ s2) : ts)
+mergeStrings (t:ts) = t : mergeStrings ts
+
+-- | Remove comment tokens.
+removeComments :: [Token] -> [Token]
+removeComments = filter keepToken
   where
-    go :: Bool -> Bool -> Text -> Text -> Text
-    go _ _ acc "" = acc
-    go inStr inChar acc t =
-      let c = T.head t
-          rest = T.tail t
-      in case (inStr, inChar, c) of
-          -- String handling
-          (False, False, '"') -> go True False (acc <> "\"") rest
-          (True, False, '"') -> go False False (acc <> "\"") rest
-          (True, _, '\\') -> 
-            if T.null rest 
-              then acc <> "\\"
-              else go True False (acc <> "\\" <> T.singleton (T.head rest)) (T.tail rest)
-          
-          -- Character handling  
-          (False, False, '\'') -> go False True (acc <> "'") rest
-          (False, True, '\\') ->  -- Handle escape in char literal
-            if T.null rest
-              then acc <> "\\"
-              else go False True (acc <> "\\" <> T.singleton (T.head rest)) (T.tail rest)
-          (False, True, '\'') -> go False False (acc <> "'") rest
+    keepToken t = case t of
+                    TSingleComment _ -> False
+                    TMultiComment  _ -> False
+                    _                -> True
 
-          -- Comment detection
-          (False, False, '/') ->
-            if not (T.null rest) && T.head rest == '/'
-              then T.stripEnd acc
-              else go False False (acc <> "/") rest
-          
-          -- In string or char literal, preserve exactly
-          (True, _, _) -> go True False (acc <> T.singleton c) rest
-          (_, True, _) -> go False True (acc <> T.singleton c) rest
-          
-          -- Normal character
-          (False, False, _) -> go False False (acc <> T.singleton c) rest
+-- * Helper functions for printing strings
 
--- | Compress whitespace in code (not strings/chars)
-compressWhitespace :: Text -> Text
-compressWhitespace = go False False ""
+-- | Render a StringChar to its printed form.
+printStringChar :: StringChar -> String
+printStringChar (NormalChar c)  = [c]
+printStringChar (EscapedChar c) = ['\\', c]
+
+-- | Compute the printed length of a StringChar.
+printedLength :: StringChar -> Int
+printedLength (NormalChar _)  = 1
+printedLength (EscapedChar _) = 2
+
+-- | Break a list of StringChar into a chunk that fits within maxLen, and possibly a remainder.
+-- It returns a pair: (chunk, maybe rest). The function never splits an EscapedChar.
+breakStringChars :: Int -> [StringChar] -> ([StringChar], Maybe [StringChar])
+breakStringChars _ [] = ([], Nothing)
+breakStringChars maxLen xs = go [] 0 xs
   where
-    go :: Bool -> Bool -> Text -> Text -> Text
-    go _ _ acc "" = acc
-    go inStr inChar acc t =
-      let c = T.head t
-          rest = T.tail t
-      in case (inStr, inChar, c) of
-          -- String handling
-          (False, False, '"') -> go True False (acc <> "\"") rest
-          (True, False, '"') -> go False False (acc <> "\"") rest
-          (True, _, '\\') -> 
-            if T.null rest 
-              then acc <> "\\"
-              else go True False (acc <> "\\" <> T.singleton (T.head rest)) (T.tail rest)
-          
-          -- Character handling  
-          (False, False, '\'') -> go False True (acc <> "'") rest
-          (False, True, '\\') ->  -- Handle escape in char literal
-            if T.null rest
-              then acc <> "\\"
-              else go False True (acc <> "\\" <> T.singleton (T.head rest)) (T.tail rest)
-          (False, True, '\'') -> go False False (acc <> "'") rest
-          
-          -- In string or char literal, preserve exactly
-          (True, _, _) -> go True False (acc <> T.singleton c) rest
-          (_, True, _) -> go False True (acc <> T.singleton c) rest
-          
-          -- Handle whitespace in code
-          (False, False, c') | isSpace c' -> 
-            let nextNonWhitespace = T.dropWhile isSpace rest
-            in if T.null nextNonWhitespace || not (isSpace (T.head nextNonWhitespace))
-                then go False False (acc <> " ") nextNonWhitespace
-                else go False False acc nextNonWhitespace
-          
-          -- Regular character in code
-          (False, False, _) -> go False False (acc <> T.singleton c) rest
+    go current _ [] = (current, Nothing)
+    go current acc rest@(t:ts)
+      -- If nothing is accumulated yet and t alone exceeds maxLen,
+      -- we force t into the chunk. (This case is unlikely if maxLen is chosen properly.)
+      | null current && printedLength t > maxLen = ([], Just (t:ts))
+      | acc + printedLength t <= maxLen = go (current ++ [t]) (acc + printedLength t) ts
+      | otherwise = (current, Just rest)
 
--- | Combine processed lines preserving preprocessor directives
-combinePP :: [Text] -> Text
-combinePP [] = ""
-combinePP [x] = x
-combinePP (x:y:xs)
-  | "#" `T.isPrefixOf` T.stripStart x = x <> "\n" <> combinePP (y:xs)
-  | "#" `T.isPrefixOf` T.stripStart y = x <> " " <> combinePP (y:xs)
-  | otherwise = x <> " " <> combinePP (y:xs)
+-- * Pretty-printing and minification
 
--- | Wrap long strings to fit within maxWidth
-wrapLongStrings :: Int -> Text -> Text
-wrapLongStrings maxWidth = go 0 False False 0 ""
-  where
-    go _ _ _ _ acc "" = acc
-    go col inStr inChar parenDepth acc t =
-      let c = T.head t
-          rest = T.tail t
-      in case (inStr, inChar, c) of
-          -- Enter string
-          (False, False, '"') -> 
-            go (col + 1) True False parenDepth (acc <> "\"") rest
-          
-          -- Exit string 
-          (True, False, '"') ->
-            let afterQuote = acc <> "\""
-            in if "#" `T.isPrefixOf` T.stripStart rest
-                 then go 0 False False parenDepth (afterQuote <> "\n") rest
-                 else go (col + 1) False False parenDepth afterQuote rest
+-- | The pretty-printer state.
+data PPState = PPState
+  { currentLine :: String   -- ^ Current line being built.
+  , outputLines :: [String]   -- ^ Already completed lines.
+  , lastWasWord :: Bool       -- ^ Was the previous token a word?
+  }
 
-          -- Enter character literal  
-          (False, False, '\'') -> 
-            go (col + 1) False True parenDepth (acc <> "'") rest
+initialState :: PPState
+initialState = PPState "" [] False
 
-          -- Exit character literal
-          (False, True, '\'') -> 
-            go (col + 1) False False parenDepth (acc <> "'") rest
-          
-          -- Handle escape in string
-          (True, _, '\\') ->
-            if T.null rest 
-              then acc <> "\\"
-              else go (col + 2) inStr inChar parenDepth (acc <> "\\" <> T.singleton (T.head rest)) (T.tail rest)
-              
-          -- Handle escape in char literal  
-          (False, True, '\\') ->
-            if T.null rest 
-              then acc <> "\\"
-              else go (col + 2) inStr inChar parenDepth (acc <> "\\" <> T.singleton (T.head rest)) (T.tail rest)
-          
-          -- Track parentheses depth
-          (False, False, '(') ->
-            go (col + 1) False False (parenDepth + 1) (acc <> "(") rest
-            
-          (False, False, ')') ->
-            go (col + 1) False False (max 0 (parenDepth - 1)) (acc <> ")") rest
-          
-          -- Break at && operator when not inside parentheses
-          (False, False, '&') | parenDepth == 0 ->
-            if not (T.null rest) && T.head rest == '&'
-              then let afterAmp = T.tail rest
-                       skipSpace = T.dropWhile isSpace afterAmp
-                   in go 1 False False parenDepth (acc <> " &&\n") skipSpace
-              else go (col + 1) False False parenDepth (acc <> "&") rest
-            
-          -- String content that would exceed maxWidth
-          (True, False, _) | col > maxWidth - 10 && col > 40 -> 
-            go 1 True False parenDepth (acc <> "\"\n\"" <> T.singleton c) rest
-          
-          -- Regular character in string or char literal
-          (True, _, _) -> go (col + 1) True False parenDepth (acc <> T.singleton c) rest
-          (_, True, _) -> go (col + 1) False True parenDepth (acc <> T.singleton c) rest
+-- | Flush the current line into the output.
+flushLine :: PPState -> PPState
+flushLine st@(PPState cl outs _)
+  | null cl   = st
+  | otherwise = st { currentLine = "", outputLines = outs ++ [cl], lastWasWord = False }
 
-          -- Break long line at operator boundaries when not in parentheses
-          (False, False, _) | col > maxWidth && parenDepth == 0 ->
-            if c == ' ' || (not (T.null rest) && T.head rest == ' ')
-              then go 1 False False parenDepth (acc <> "\n" <> T.singleton c) rest
-              else go (col + 1) False False parenDepth (acc <> T.singleton c) rest
-            
-          -- Regular character
-          (False, False, _) ->
-            go (col + 1) False False parenDepth (acc <> T.singleton c) rest
+-- | Append text to the current line.
+appendText :: String -> PPState -> PPState
+appendText txt st = st { currentLine = currentLine st ++ txt }
+
+-- | Break the line by appending a break marker (" \\") then flushing.
+breakLine :: PPState -> PPState
+breakLine st = flushLine (appendText " \\" st)
+
+-- | Emit tokens to the output. This function is sensitive to the token type
+-- and the available space on the current line.
+emitTokens :: Int -> [Token] -> PPState -> PPState
+emitTokens maxWidth tokens_ st =
+  case tokens_ of
+    [] -> st
+    token_:tks ->
+      case token_ of
+        -- Preprocessor directives appear on their own line with blank lines before and after.
+        TPreprocessor s ->
+          let st1 = flushLine st
+              st2 = st1 { outputLines = outputLines st1 ++ [s] }
+          in emitTokens maxWidth tks (flushLine st2)
+        -- For words, insert a space if the previous token was also a word.
+        TWord s ->
+          let sep = if lastWasWord st then " " else ""
+              candidate = sep ++ s
+          in if length (currentLine st) + length candidate <= maxWidth
+                then emitTokens maxWidth tks st { currentLine = currentLine st ++ candidate, lastWasWord = True }
+                else let st' = breakLine st
+                    in emitTokens maxWidth tks st' { currentLine = currentLine st' ++ s, lastWasWord = True }
+        -- Symbols are appended with no extra separator.
+        TSymbol s ->
+          let candidate = s
+          in if length (currentLine st) + length candidate <= maxWidth
+                then emitTokens maxWidth tks st { currentLine = currentLine st ++ candidate, lastWasWord = False }
+                else let st' = breakLine st
+                     in emitTokens maxWidth tks st' { currentLine = currentLine st' ++ candidate, lastWasWord = False }
+        -- For strings, we try to emit the whole literal if it fits.
+        -- Otherwise, we break it into a chunk that fits, then recursively process the remainder.
+        TString s ->
+          let printedFull = concatMap printStringChar s
+              tokenFull = "\"" ++ printedFull ++ "\""
+          in if length (currentLine st) + length tokenFull <= maxWidth
+                then emitTokens maxWidth tks st { currentLine = currentLine st ++ tokenFull, lastWasWord = False }
+                else
+                  let remainingChunkSize = maxWidth - length (currentLine st) - 2  -- leave room for quotes
+                      (chunk_, mRest) = breakStringChars remainingChunkSize s
+                      sChunk = if null chunk_ then "" else "\"" ++ concatMap printStringChar chunk_ ++ "\""
+                      st2 = st { currentLine = currentLine st ++ sChunk, lastWasWord = False }
+                  in case mRest of
+                    Nothing   -> emitTokens maxWidth tks st2
+                    Just rest -> emitTokens maxWidth (TString rest : tks) (flushLine st2)
+        -- Comments have been removed already.
+        _ -> st
+
+-- | Assemble tokens into minified output.
+prettyPrintTokens :: Int -> [Token] -> String
+prettyPrintTokens maxWidth toks =
+  let stFinal = emitTokens maxWidth toks initialState                      
+      stOut = flushLine stFinal
+      allLines = outputLines stOut ++ [currentLine stOut | not (null (currentLine stOut))]
+  in unlines allLines
+
+-- | Top-level minifier: tokenize the input, merge strings, remove comments, and pretty-print.
+minifyC :: Int -> String -> String
+minifyC maxWidth code =
+  case runParser pTokens "" code of
+    Left err   -> error (errorBundlePretty err)
+    Right toks ->
+      let toksMerged   = mergeStrings toks
+          toksClean    = removeComments toksMerged
+      in prettyPrintTokens maxWidth toksClean
