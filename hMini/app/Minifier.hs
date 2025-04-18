@@ -1,4 +1,4 @@
-module Minifier 
+module Minifier
   ( minifyC
   ) where
 
@@ -8,6 +8,7 @@ import           Data.Void
 import           Text.Megaparsec            hiding (Token)
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
+import           Debug.Trace (trace)
 
 
 -- * Token and StringChar definitions
@@ -31,9 +32,16 @@ data Token
 
 type Parser = Parsec Void String
 
--- | Consumes spaces.
+-- | Consumes spaces and backslash-newline sequences
 sc :: Parser ()
-sc = L.space space1 empty empty
+sc = L.space space1' empty empty
+  where
+    space1' = void $ some (satisfy isSpace <|> backslashNewline)
+    backslashNewline = try $ do
+      _ <- char '\\'
+      _ <- many (char ' ' <|> char '\t')  -- Optional whitespace after backslash
+      _ <- char '\n'
+      return ' '
 
 -- | Top-level token parser.
 pTokens :: Parser [Token]
@@ -45,8 +53,8 @@ pToken = choice
   [ try pPreprocessor
   , try pSingleLineComment
   , try pMultiLineComment
-  , try pString
   , try pChar
+  , try pString
   , try pWord
   , pSymbol
   ]
@@ -96,8 +104,7 @@ pChar = do
 pStringChar :: Parser StringChar
 pStringChar =
       (do _ <- char '\\'
-          c <- anySingle
-          return (EscapedChar c))
+          EscapedChar <$> anySingle)
   <|> (do c <- satisfy (\x -> x /= '"' && x /= '\\' && x /= '\n')
           return (NormalChar c))
 
@@ -110,8 +117,8 @@ pWord = do
 -- | Parse a symbol token.
 pSymbol :: Parser Token
 pSymbol = do
-  c <- satisfy (\x -> not (isAlphaNum x) && not (isSpace x) && x /= '"')
-  rest <- many (satisfy (\x -> not (isAlphaNum x) && not (isSpace x) && x /= '"'))
+  c <- satisfy (\x -> not (isAlphaNum x) && not (isSpace x) && x /= '"' && x /= '\'')
+  rest <- many (satisfy (\x -> not (isAlphaNum x) && not (isSpace x) && x /= '"' && x /= '\''))
   return $ TSymbol (c:rest)
 
 -- * Postprocessing of tokens
@@ -240,7 +247,7 @@ emitTokens maxWidth tokens_ st =
 -- | Assemble tokens into minified output.
 prettyPrintTokens :: Int -> [Token] -> String
 prettyPrintTokens maxWidth toks =
-  let stFinal = emitTokens maxWidth toks initialState                      
+  let stFinal = emitTokens maxWidth toks initialState
       stOut = flushLine stFinal
       allLines = outputLines stOut ++ [currentLine stOut | not (null (currentLine stOut))]
   in unlines allLines
@@ -251,6 +258,7 @@ minifyC maxWidth code =
   case runParser pTokens "" code of
     Left err   -> error (errorBundlePretty err)
     Right toks ->
+      -- let toksMerged   = trace ("Tokens after merging: " ++ show (mergeStrings toks)) (mergeStrings toks)
       let toksMerged   = mergeStrings toks
           toksClean    = removeComments toksMerged
       in prettyPrintTokens maxWidth toksClean
